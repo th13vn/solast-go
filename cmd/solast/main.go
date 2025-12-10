@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime/debug"
 
 	"github.com/spf13/cobra"
 	"github.com/th13vn/solast-go/pkg/parser"
@@ -12,11 +13,32 @@ import (
 )
 
 var (
-	// Version information (set during build)
+	// Version information (set during build via ldflags, or detected from build info)
 	Version   = "dev"
 	BuildTime = "unknown"
 	GitCommit = "unknown"
 )
+
+func init() {
+	// Try to get version from Go module build info (works with go install)
+	if Version == "dev" {
+		if info, ok := debug.ReadBuildInfo(); ok {
+			if info.Main.Version != "" && info.Main.Version != "(devel)" {
+				Version = info.Main.Version
+			}
+			for _, setting := range info.Settings {
+				switch setting.Key {
+				case "vcs.revision":
+					if len(setting.Value) >= 7 {
+						GitCommit = setting.Value[:7]
+					}
+				case "vcs.time":
+					BuildTime = setting.Value
+				}
+			}
+		}
+	}
+}
 
 // Parse command flags
 var (
