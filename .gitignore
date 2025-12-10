@@ -1,0 +1,43 @@
+# Binaries
+solast
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+
+# Go workspace file
+go.work
+
+# IDE
+.idea/
+.vscode/
+.cursor/
+.antigravity/
+*.swp
+*.swo
+*~
+
+# ANTLR
+*.jar
+*.interp
+*.tokens
+
+# Generated files (can be regenerated)
+internal/gen/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+dist/
+build/
+
