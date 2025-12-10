@@ -117,6 +117,25 @@ func MustParse(s string) Version {
 	return v
 }
 
+// ParseConstraint parses a version string with optional constraint prefix
+// e.g., "^0.8.1", ">=0.6.0", "~0.8.0", "0.8.1"
+// Returns the constraint operator (may be empty), the version, and any error
+func ParseConstraint(s string) (constraint string, v Version, err error) {
+	s = strings.TrimSpace(s)
+
+	// Extract constraint prefix and version
+	constraintRe := regexp.MustCompile(`^(\^|~|>=|<=|>|<|=)?(\d+\.\d+(\.\d+)?)$`)
+	matches := constraintRe.FindStringSubmatch(s)
+
+	if matches == nil {
+		return "", Version{}, fmt.Errorf("invalid constraint format: %s", s)
+	}
+
+	constraint = matches[1]
+	v, err = Parse(matches[2])
+	return constraint, v, err
+}
+
 // DetectedVersion represents the version info extracted from source code
 type DetectedVersion struct {
 	Raw        string   // Raw pragma string, e.g., "^0.8.0"

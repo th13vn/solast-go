@@ -149,7 +149,7 @@ func (b *Builder) parsePragmaDirective() *ast.PragmaDirective {
 	for !b.check(lexer.SEMICOLON) && !b.isAtEnd() {
 		valueParts = append(valueParts, b.advance().Value)
 	}
-	value := strings.Join(valueParts, " ")
+	value := strings.Join(valueParts, "")
 	
 	endTok := b.expect(lexer.SEMICOLON)
 	

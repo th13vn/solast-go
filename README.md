@@ -123,8 +123,11 @@ type Options struct {
 ### Version Package
 
 ```go
-// Parse a version string
+// Parse a version string "0.8.1"
 func Parse(s string) (Version, error)
+
+// Parse version with constraint "^0.8.1", ">=0.6.0"
+func ParseConstraint(s string) (constraint string, v Version, err error)
 
 // Create a version
 func New(major, minor, patch int) Version

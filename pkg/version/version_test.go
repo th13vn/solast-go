@@ -210,3 +210,44 @@ func TestDetectAll(t *testing.T) {
 		t.Errorf("DetectAll() returned %d results, want 2", len(results))
 	}
 }
+
+func TestParseConstraint(t *testing.T) {
+	tests := []struct {
+		input      string
+		wantOp     string
+		wantVer    Version
+		wantErr    bool
+	}{
+		{"^0.8.1", "^", Version{0, 8, 1}, false},
+		{">=0.6.0", ">=", Version{0, 6, 0}, false},
+		{"<=0.8.20", "<=", Version{0, 8, 20}, false},
+		{">0.7.0", ">", Version{0, 7, 0}, false},
+		{"<0.9.0", "<", Version{0, 9, 0}, false},
+		{"~0.8.0", "~", Version{0, 8, 0}, false},
+		{"=0.8.0", "=", Version{0, 8, 0}, false},
+		{"0.8.1", "", Version{0, 8, 1}, false},
+		{"0.8", "", Version{0, 8, 0}, false},
+		{"^0.8.0 <0.9.0", "", Version{}, true}, // complex constraints not supported
+		{"invalid", "", Version{}, true},
+		{"^", "", Version{}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			op, ver, err := ParseConstraint(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ParseConstraint(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+				return
+			}
+			if tt.wantErr {
+				return
+			}
+			if op != tt.wantOp {
+				t.Errorf("ParseConstraint(%q) op = %q, want %q", tt.input, op, tt.wantOp)
+			}
+			if ver != tt.wantVer {
+				t.Errorf("ParseConstraint(%q) ver = %v, want %v", tt.input, ver, tt.wantVer)
+			}
+		})
+	}
+}
