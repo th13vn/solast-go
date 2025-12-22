@@ -417,6 +417,14 @@ func (b *Builder) parsePrimary() ast.Node {
 			Name:     tok.Value,
 		}
 	
+	// Contextual keywords can also be used as identifiers in expressions
+	case lexer.FROM, lexer.ERROR, lexer.REVERT, lexer.GLOBAL, lexer.TRANSIENT, lexer.LAYOUT, lexer.AT:
+		b.advance()
+		return &ast.Identifier{
+			BaseNode: ast.BaseNode{Type: ast.NodeIdentifier},
+			Name:     tok.Value,
+		}
+	
 	case lexer.NUMBER:
 		b.advance()
 		return b.parseNumberLiteral(tok)

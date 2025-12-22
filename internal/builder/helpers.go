@@ -46,6 +46,10 @@ func (b *Builder) expect(t lexer.TokenType) lexer.Token {
 		return b.advance()
 	}
 	b.addError(fmt.Sprintf("expected '%s', got '%s'", t.String(), b.peek().Value))
+	// Advance even on failure to prevent infinite loops in non-tolerant mode
+	if !b.options.Tolerant {
+		b.advance()
+	}
 	return b.peek()
 }
 
@@ -54,6 +58,10 @@ func (b *Builder) expectKeyword(keyword string) lexer.Token {
 		return b.advance()
 	}
 	b.addError(fmt.Sprintf("expected '%s', got '%s'", keyword, b.peek().Value))
+	// Advance even on failure to prevent infinite loops in non-tolerant mode
+	if !b.options.Tolerant {
+		b.advance()
+	}
 	return b.peek()
 }
 

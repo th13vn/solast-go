@@ -211,8 +211,8 @@ func (b *Builder) parseParameter() *ast.VariableDeclaration {
 		node.StorageLocation = b.advance().Value
 	}
 	
-	// Name (optional)
-	if b.check(lexer.IDENTIFIER) {
+	// Name (optional) - can be identifier or contextual keyword like 'from'
+	if b.check(lexer.IDENTIFIER) || b.isContextualKeyword() {
 		nameTok := b.advance()
 		node.Name = nameTok.Value
 		node.Identifier = &ast.Identifier{
@@ -240,8 +240,8 @@ func (b *Builder) parseVariableDeclaration() *ast.VariableDeclaration {
 		node.StorageLocation = b.advance().Value
 	}
 	
-	// Name
-	if b.check(lexer.IDENTIFIER) {
+	// Name - can be identifier or contextual keyword like 'from'
+	if b.check(lexer.IDENTIFIER) || b.isContextualKeyword() {
 		nameTok := b.advance()
 		node.Name = nameTok.Value
 		node.Identifier = &ast.Identifier{

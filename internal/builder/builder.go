@@ -353,7 +353,8 @@ func (b *Builder) parseFunctionDefinition() *ast.FunctionDefinition {
 	}
 	
 	// Function name (optional for fallback/receive)
-	if b.check(lexer.IDENTIFIER) || b.check(lexer.FALLBACK) || b.check(lexer.RECEIVE) {
+	// Contextual keywords like 'at', 'from', 'error', 'revert' can also be function names
+	if b.check(lexer.IDENTIFIER) || b.check(lexer.FALLBACK) || b.check(lexer.RECEIVE) || b.isContextualKeyword() {
 		nameTok := b.advance()
 		node.Name = nameTok.Value
 		if nameTok.Type == lexer.FALLBACK {
