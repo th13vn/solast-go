@@ -125,6 +125,21 @@ func (b *Builder) isContextualKeyword() bool {
 		t == lexer.GLOBAL || t == lexer.TRANSIENT || t == lexer.LAYOUT || t == lexer.AT
 }
 
+// expectMemberName consumes a declaration name that may legally be a contextual
+// keyword (from, error, revert, global, transient, layout, at) used as an
+// identifier — e.g. `struct S { address from; }` or `enum E { from }`. Solidity
+// permits these as ordinary names. Without this, the bare expect(IDENTIFIER)
+// fails on such a name and, in tolerant mode (where expect does not advance on
+// mismatch), the parser desyncs and silently consumes the rest of the enclosing
+// contract. Falls back to expect(IDENTIFIER) so a genuinely missing name still
+// reports the usual error.
+func (b *Builder) expectMemberName() lexer.Token {
+	if b.check(lexer.IDENTIFIER) || b.isContextualKeyword() {
+		return b.advance()
+	}
+	return b.expect(lexer.IDENTIFIER)
+}
+
 // locationSetter is an interface for nodes that can have location set
 type locationSetter interface {
 	setLoc(*ast.Location)

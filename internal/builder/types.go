@@ -347,7 +347,10 @@ func (b *Builder) parseStructDefinition() *ast.StructDefinition {
 	
 	for !b.check(lexer.RBRACE) && !b.isAtEnd() {
 		typeName := b.parseTypeName()
-		memberNameTok := b.expect(lexer.IDENTIFIER)
+		// Member name may be a contextual keyword (from, error, …) used as an
+		// identifier. A bare expect(IDENTIFIER) here desyncs the parser on a
+		// field named `from`, silently dropping the rest of the contract.
+		memberNameTok := b.expectMemberName()
 		b.expect(lexer.SEMICOLON)
 		
 		member := &ast.VariableDeclaration{
@@ -380,7 +383,9 @@ func (b *Builder) parseEnumDefinition() *ast.EnumDefinition {
 	b.expect(lexer.LBRACE)
 	
 	for !b.check(lexer.RBRACE) && !b.isAtEnd() {
-		valueTok := b.expect(lexer.IDENTIFIER)
+		// Enum value may be a contextual keyword (from, error, …) used as an
+		// identifier — same desync hazard as struct members.
+		valueTok := b.expectMemberName()
 		member := &ast.EnumValue{
 			BaseNode: ast.BaseNode{Type: ast.NodeEnumValue},
 			Name:     valueTok.Value,
