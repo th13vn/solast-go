@@ -65,3 +65,29 @@ contract A { enum E { a, from } function f() external pure returns (uint256) { r
 		})
 	}
 }
+
+// TestParseWithErrorsExposesTolerantErrors verifies that ParseWithErrors surfaces
+// recovered errors in tolerant mode (which plain Parse discards), and reports a
+// clean parse as an empty error slice.
+func TestParseWithErrorsExposesTolerantErrors(t *testing.T) {
+	clean := `pragma solidity ^0.8.20;
+contract A { function f() external pure returns (uint256) { return 1; } }`
+	if _, errs, err := ParseWithErrors(clean, &Options{Tolerant: true}); err != nil || len(errs) != 0 {
+		t.Fatalf("clean source: err=%v errs=%d, want no error and 0 recovered errors", err, len(errs))
+	}
+
+	// Malformed: missing type before the member, and a stray token — tolerant mode
+	// recovers but should report the errors rather than swallow them.
+	broken := `pragma solidity ^0.8.20;
+contract A { function f( external { uint256 x = ; } }`
+	res, errs, err := ParseWithErrors(broken, &Options{Tolerant: true})
+	if err != nil {
+		t.Fatalf("tolerant parse should not hard-fail: %v", err)
+	}
+	if res == nil {
+		t.Fatal("tolerant parse should still return an AST")
+	}
+	if len(errs) == 0 {
+		t.Fatal("ParseWithErrors must surface recovered errors in tolerant mode")
+	}
+}

@@ -83,6 +83,52 @@ func Parse(input string, opts *Options) (*ast.SourceUnit, error) {
 	return result, nil
 }
 
+// ParseWithErrors parses like Parse but ALSO returns the errors recovered during
+// tolerant parsing. In non-tolerant mode it behaves like Parse (a hard error is
+// returned and the error slice is nil). In tolerant mode the AST is returned
+// together with every recovered error, so callers can surface parse failures
+// that Parse would otherwise swallow silently — e.g. a desync that drops part of
+// a contract body. A nil/empty slice means a clean parse.
+func ParseWithErrors(input string, opts *Options) (*ast.SourceUnit, []*Error, error) {
+	if opts == nil {
+		opts = &Options{}
+	}
+
+	b := builder.New(input, &builder.Options{
+		Tolerant: opts.Tolerant,
+		Loc:      opts.Loc,
+		Range:    opts.Range,
+	})
+
+	result, err := b.Build()
+	if err != nil {
+		builderErr := err.(*builder.Error)
+		return nil, nil, &ParserError{
+			Errors: []*Error{{
+				Message: builderErr.Message,
+				Line:    builderErr.Line,
+				Column:  builderErr.Column,
+			}},
+		}
+	}
+
+	var errors []*Error
+	for _, e := range b.Errors() {
+		errors = append(errors, &Error{
+			Message: e.Message,
+			Line:    e.Line,
+			Column:  e.Column,
+		})
+	}
+
+	// Non-tolerant mode keeps the original contract: recovered errors are fatal.
+	if len(errors) > 0 && !opts.Tolerant {
+		return nil, nil, &ParserError{Errors: errors}
+	}
+
+	return result, errors, nil
+}
+
 // ParseReader parses Solidity source from an io.Reader and returns an AST
 func ParseReader(r io.Reader, opts *Options) (*ast.SourceUnit, error) {
 	content, err := io.ReadAll(r)
