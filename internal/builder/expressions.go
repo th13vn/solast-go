@@ -287,8 +287,9 @@ func (b *Builder) parsePostfix() ast.Node {
 }
 
 func (b *Builder) parseCallMemberIndex() ast.Node {
+	startTok := b.peek()
 	expr := b.parsePrimary()
-	
+
 	for {
 		if b.check(lexer.PERIOD) {
 			b.advance() // .
@@ -298,6 +299,7 @@ func (b *Builder) parseCallMemberIndex() ast.Node {
 				Expression: expr,
 				MemberName: memberTok.Value,
 			}
+			b.setLocation(expr, startTok, b.previous())
 		} else if b.check(lexer.LBRACK) {
 			b.advance() // [
 			
@@ -333,11 +335,14 @@ func (b *Builder) parseCallMemberIndex() ast.Node {
 					Index:    indexStart,
 				}
 			}
+			b.setLocation(expr, startTok, b.previous())
 		} else if b.check(lexer.LPAREN) {
 			expr = b.parseFunctionCall(expr)
+			b.setLocation(expr, startTok, b.previous())
 		} else if b.check(lexer.LBRACE) {
 			// Named arguments for function call options
 			expr = b.parseFunctionCallOptions(expr)
+			b.setLocation(expr, startTok, b.previous())
 		} else {
 			break
 		}
