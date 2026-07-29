@@ -696,3 +696,137 @@ func TestComplexContract(t *testing.T) {
 		t.Error("Expected contracts")
 	}
 }
+
+// TestParseAssemblyFlags covers `assembly ("memory-safe") { … }` — the optional
+// assemblyFlags group (Solidity >= 0.8.13, pervasive in OpenZeppelin v5 and
+// Solady). Before flags were parsed, the unexpected `(` desynchronized the
+// tolerant parser and every declaration AFTER the assembly block was silently
+// dropped, so this asserts both a clean parse and that later members survive.
+func TestParseAssemblyFlags(t *testing.T) {
+	tests := []struct {
+		name      string
+		assembly  string
+		wantFlags []string
+	}{
+		{"no flags", `assembly { let x := 1 }`, nil},
+		{"memory safe", `assembly ("memory-safe") { let x := 1 }`, []string{"memory-safe"}},
+		{"dialect and flags", `assembly "evmasm" ("memory-safe") { let x := 1 }`, []string{"memory-safe"}},
+		{"multiple flags", `assembly ("memory-safe", "other") { let x := 1 }`, []string{"memory-safe", "other"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := `// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+contract A {
+    function first() public pure { ` + tt.assembly + ` }
+    function second() public pure returns (uint256) { return 2; }
+    uint256 public third;
+}`
+			result, errs, err := ParseWithErrors(input, &Options{Tolerant: true})
+			if err != nil {
+				t.Fatalf("ParseWithErrors: %v", err)
+			}
+			if len(errs) != 0 {
+				t.Fatalf("expected a clean parse, got %d recovered error(s), first: %v", len(errs), errs[0])
+			}
+
+			contract := findContract(result, "A")
+			if contract == nil {
+				t.Fatal("contract A not found")
+			}
+
+			// Desync regression: everything declared after the assembly block
+			// must still be present.
+			var funcs, vars []string
+			for _, member := range contract.SubNodes {
+				switch n := member.(type) {
+				case *ast.FunctionDefinition:
+					funcs = append(funcs, n.Name)
+				case *ast.StateVariableDeclaration:
+					for _, v := range n.Variables {
+						vars = append(vars, v.Name)
+					}
+				}
+			}
+			if len(funcs) != 2 || funcs[0] != "first" || funcs[1] != "second" {
+				t.Errorf("functions = %v, want [first second]", funcs)
+			}
+			if len(vars) != 1 || vars[0] != "third" {
+				t.Errorf("state variables = %v, want [third]", vars)
+			}
+
+			asm := findInlineAssembly(contract)
+			if asm == nil {
+				t.Fatal("inline assembly node not found")
+			}
+			if asm.Body == nil || len(asm.Body.Operations) == 0 {
+				t.Error("assembly body was not parsed")
+			}
+			if len(asm.Flags) != len(tt.wantFlags) {
+				t.Fatalf("Flags = %v, want %v", asm.Flags, tt.wantFlags)
+			}
+			for i, want := range tt.wantFlags {
+				if asm.Flags[i] != want {
+					t.Errorf("Flags[%d] = %q, want %q", i, asm.Flags[i], want)
+				}
+			}
+		})
+	}
+}
+
+// TestParseAssemblyFlagsDialect pins that a dialect string without flags still
+// lands in Language rather than being mistaken for a flag.
+func TestParseAssemblyFlagsDialect(t *testing.T) {
+	input := `pragma solidity ^0.8.20;
+contract A { function f() public pure { assembly "evmasm" { let x := 1 } } }`
+	result, errs, err := ParseWithErrors(input, &Options{Tolerant: true})
+	if err != nil {
+		t.Fatalf("ParseWithErrors: %v", err)
+	}
+	if len(errs) != 0 {
+		t.Fatalf("expected a clean parse, got %v", errs[0])
+	}
+	asm := findInlineAssembly(findContract(result, "A"))
+	if asm == nil {
+		t.Fatal("inline assembly node not found")
+	}
+	if asm.Language != "evmasm" {
+		t.Errorf("Language = %q, want %q", asm.Language, "evmasm")
+	}
+	if len(asm.Flags) != 0 {
+		t.Errorf("Flags = %v, want none", asm.Flags)
+	}
+}
+
+func findContract(unit *ast.SourceUnit, name string) *ast.ContractDefinition {
+	if unit == nil {
+		return nil
+	}
+	for _, child := range unit.Children {
+		if contract, ok := child.(*ast.ContractDefinition); ok && contract.Name == name {
+			return contract
+		}
+	}
+	return nil
+}
+
+// findInlineAssembly returns the first inline-assembly node in any function body
+// of contract, without depending on the Visitor interface.
+func findInlineAssembly(contract *ast.ContractDefinition) *ast.InlineAssembly {
+	if contract == nil {
+		return nil
+	}
+	for _, member := range contract.SubNodes {
+		fn, ok := member.(*ast.FunctionDefinition)
+		if !ok || fn.Body == nil {
+			continue
+		}
+		for _, stmt := range fn.Body.Statements {
+			if asm, ok := stmt.(*ast.InlineAssembly); ok {
+				return asm
+			}
+		}
+	}
+	return nil
+}

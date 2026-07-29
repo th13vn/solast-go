@@ -432,10 +432,49 @@ func (b *Builder) parseAssemblyStatement() *ast.InlineAssembly {
 		node.Language = b.advance().Value
 	}
 	
+	// Optional assembly flags: assembly ("memory-safe") { ... }
+	node.Flags = b.parseAssemblyFlags()
+
 	node.Body = b.parseAssemblyBlock()
-	
+
 	b.setLocation(node, startTok, b.previous())
 	return node
+}
+
+// parseAssemblyFlags consumes the optional assemblyFlags group that may follow
+// the assembly keyword and its optional dialect string:
+//
+//	assembly ("memory-safe") { ... }
+//
+// Grammar (SolidityParser.g4 assemblyFlags): AssemblyBlockLParen
+// AssemblyFlagString (AssemblyBlockComma AssemblyFlagString)*
+// AssemblyBlockRParen. The flags carry no meaning for this parser and are
+// recorded only so consumers can see them, but they MUST be consumed: leaving
+// the '(' for parseAssemblyBlock desyncs tolerant parsing and silently drops
+// every declaration after the block. Returns nil when no flag group is present.
+func (b *Builder) parseAssemblyFlags() []string {
+	if !b.check(lexer.LPAREN) {
+		return nil
+	}
+	b.advance() // (
+
+	var flags []string
+	for !b.check(lexer.RPAREN) && !b.isAtEnd() {
+		if !b.check(lexer.STRING) {
+			// Not a flag list after all. Report it and stop consuming so
+			// synchronize() can recover instead of eating the block.
+			b.expect(lexer.STRING)
+			break
+		}
+		flags = append(flags, b.advance().Value)
+		if !b.check(lexer.COMMA) {
+			break
+		}
+		b.advance() // ,
+	}
+
+	b.expect(lexer.RPAREN)
+	return flags
 }
 
 func (b *Builder) parseAssemblyBlock() *ast.AssemblyBlock {

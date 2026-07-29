@@ -557,10 +557,16 @@ type HexLiteral struct {
 	Parts []string `json:"parts,omitempty"`
 }
 
-// InlineAssembly represents inline assembly
+// InlineAssembly represents inline assembly.
+//
+// Language is the optional dialect string (`assembly "evmasm" { ... }`). Flags is
+// the optional assemblyFlags group (`assembly ("memory-safe") { ... }`, Solidity
+// >= 0.8.13), with the surrounding quotes stripped. Both may be present, in that
+// order. Flags is additive JSON: it is omitted when the block declares none.
 type InlineAssembly struct {
 	BaseNode
 	Language string         `json:"language,omitempty"`
+	Flags    []string       `json:"flags,omitempty"`
 	Body     *AssemblyBlock `json:"body"`
 }
 

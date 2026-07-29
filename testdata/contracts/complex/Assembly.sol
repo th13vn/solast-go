@@ -93,4 +93,23 @@ contract AssemblyExamples {
             }
         }
     }
+
+    // Assembly flags (Solidity >= 0.8.13), as used throughout OpenZeppelin v5
+    // and Solady. The flag group must be consumed, otherwise the parser desyncs
+    // and silently drops every member declared below it.
+    function memorySafe(uint256 a) public pure returns (uint256 result) {
+        assembly ("memory-safe") {
+            result := add(a, 1)
+        }
+    }
+
+    // Dialect string plus a flag group.
+    function dialectAndFlags(uint256 a) public pure returns (uint256 result) {
+        assembly "evmasm" ("memory-safe") {
+            result := add(a, 2)
+        }
+    }
+
+    // Present to prove nothing after a flagged assembly block is lost.
+    uint256 public afterFlaggedAssembly = 7;
 }

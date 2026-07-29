@@ -28,7 +28,7 @@ type Node interface {
 - **Type names**: `ElementaryTypeName`, `UserDefinedTypeName{NamePath}`, `Mapping{KeyType, ValueType, KeyName, ValueName}`, `ArrayTypeName{BaseTypeName, Length}`, `FunctionTypeName`.
 - **Statements**: `Block`, `UncheckedBlock`, `ExpressionStatement`, `IfStatement`, `WhileStatement`, `DoWhileStatement`, `ForStatement`, `Continue/Break/Return/Emit/Revert Statement`, `TryStatement`, `CatchClause`.
 - **Expressions**: `BinaryOperation`, `UnaryOperation`, `Conditional`, `FunctionCall{Expression, Arguments, Names, Identifiers}`, `FunctionCallOptions`, `MemberAccess`, `IndexAccess`, `IndexRangeAccess`, `NewExpression`, `TupleExpression`, `NameValueExpression`/`NameValueList`, `Identifier`, `NumberLiteral{Number, SubDenomination}`, `BooleanLiteral`, `StringLiteral{Value, Parts, IsUnicode}`, `HexLiteral`.
-- **Assembly (Yul)**: `InlineAssembly`, `AssemblyBlock`, `AssemblyCall`, `AssemblyLocalDefinition`, `AssemblyAssignment`, `AssemblyIdentifier`, `AssemblyLiteral`, `AssemblyIf`, `AssemblySwitch`/`AssemblyCase`, `AssemblyFor`, `AssemblyFunctionDefinition`.
+- **Assembly (Yul)**: `InlineAssembly` (`Language` = optional dialect string, `Flags` = optional `("memory-safe")` group), `AssemblyBlock`, `AssemblyCall`, `AssemblyLocalDefinition`, `AssemblyAssignment`, `AssemblyIdentifier`, `AssemblyLiteral`, `AssemblyIf`, `AssemblySwitch`/`AssemblyCase`, `AssemblyFor`, `AssemblyFunctionDefinition`.
 - **Misc**: `ModifierInvocation`, `ParameterList`, `Parameter`, `EventParameter`.
 
 > JSON note: nodes serialize to JSON (CLI `parse` and w3goaudit caching rely on it). Keep field tags stable; renaming a field is a breaking change for consumers.

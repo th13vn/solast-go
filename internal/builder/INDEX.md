@@ -44,6 +44,22 @@ type Error   struct { Message string; Line, Column int } // builder.go:13
 - `expectMemberName()` (136): identifier **or** contextual keyword; **use this for every declaration NAME** (struct members types.go:353, enum values types.go:388) instead of bare `expect(IDENTIFIER)`, or a member named `from` desyncs the parser and silently drops the rest of the contract.
 - `setLocation(node, start, end)` (150): fills `Loc`/`Range` when enabled; has a per-node-type switch — **add a case for every new AST node** or it won't get source positions.
 
+## Inline assembly (statements.go)
+
+`parseAssemblyStatement` (423) consumes, in order: the `assembly` keyword, an
+optional **dialect** string (`assembly "evmasm" { … }` → `InlineAssembly.Language`),
+an optional **flags** group (`assembly ("memory-safe") { … }` →
+`InlineAssembly.Flags`, via `parseAssemblyFlags`), then the block.
+
+Both optional parts are the same desync trap as `expectMemberName`: the flags
+group is optional to *write*, not optional to *consume*. Leaving its `(` for
+`parseAssemblyBlock` makes `expect(LBRACE)` fail, and in tolerant mode that does
+not advance — the parser then shreds the remainder of the file.
+`assembly ("memory-safe")` is standard from Solidity 0.8.13 and pervasive in
+OpenZeppelin v5 / Solady, so this silently blanked whole library files for
+downstream consumers. Any future optional pre-block syntax must be consumed here
+too.
+
 ## Expression precedence ladder (expressions.go) — lowest → highest
 
 `parseExpression`(27) → `parseAssignment`(31) → `parseTernary`(49) → `parseLogicalOr`(69) → `parseLogicalAnd`(86) → `parseEquality`(103) → `parseRelational`(120) → `parseBitwiseOr`(137) → `parseBitwiseXor`(154) → `parseBitwiseAnd`(171) → `parseShift`(188) → `parseAdditive`(205) → `parseMultiplicative`(222) → `parseExponentiation`(239, right-assoc) → `parseUnary`(256) → `parsePostfix`(273) → `parseCallMemberIndex`(289) → `parsePrimary`(409). A new binary operator slots into the level matching its precedence; a new primary form (literal/keyword-expr) goes in `parsePrimary`.
