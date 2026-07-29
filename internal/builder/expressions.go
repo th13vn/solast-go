@@ -29,18 +29,22 @@ func (b *Builder) parseExpression() ast.Node {
 }
 
 func (b *Builder) parseAssignment() ast.Node {
+	startTok := b.peek()
+
 	left := b.parseTernary()
 	
 	if b.isAssignmentOperator() {
 		op := b.advance().Value
 		right := b.parseAssignment()
 		
-		return &ast.BinaryOperation{
+		node := &ast.BinaryOperation{
 			BaseNode: ast.BaseNode{Type: ast.NodeBinaryOperation},
 			Operator: op,
 			Left:     left,
 			Right:    right,
 		}
+		b.setLocation(node, startTok, b.previous())
+		return node
 	}
 	
 	return left
@@ -67,187 +71,231 @@ func (b *Builder) parseTernary() ast.Node {
 }
 
 func (b *Builder) parseLogicalOr() ast.Node {
+	startTok := b.peek()
+
 	left := b.parseLogicalAnd()
 	
 	for b.check(lexer.OR) {
 		op := b.advance().Value
 		right := b.parseLogicalAnd()
-		left = &ast.BinaryOperation{
+		node := &ast.BinaryOperation{
 			BaseNode: ast.BaseNode{Type: ast.NodeBinaryOperation},
 			Operator: op,
 			Left:     left,
 			Right:    right,
 		}
+		b.setLocation(node, startTok, b.previous())
+		left = node
 	}
 	
 	return left
 }
 
 func (b *Builder) parseLogicalAnd() ast.Node {
+	startTok := b.peek()
+
 	left := b.parseEquality()
 	
 	for b.check(lexer.AND) {
 		op := b.advance().Value
 		right := b.parseEquality()
-		left = &ast.BinaryOperation{
+		node := &ast.BinaryOperation{
 			BaseNode: ast.BaseNode{Type: ast.NodeBinaryOperation},
 			Operator: op,
 			Left:     left,
 			Right:    right,
 		}
+		b.setLocation(node, startTok, b.previous())
+		left = node
 	}
 	
 	return left
 }
 
 func (b *Builder) parseEquality() ast.Node {
+	startTok := b.peek()
+
 	left := b.parseRelational()
 	
 	for b.check(lexer.EQ) || b.check(lexer.NEQ) {
 		op := b.advance().Value
 		right := b.parseRelational()
-		left = &ast.BinaryOperation{
+		node := &ast.BinaryOperation{
 			BaseNode: ast.BaseNode{Type: ast.NodeBinaryOperation},
 			Operator: op,
 			Left:     left,
 			Right:    right,
 		}
+		b.setLocation(node, startTok, b.previous())
+		left = node
 	}
 	
 	return left
 }
 
 func (b *Builder) parseRelational() ast.Node {
+	startTok := b.peek()
+
 	left := b.parseBitwiseOr()
 	
 	for b.check(lexer.LT) || b.check(lexer.GT) || b.check(lexer.LTE) || b.check(lexer.GTE) {
 		op := b.advance().Value
 		right := b.parseBitwiseOr()
-		left = &ast.BinaryOperation{
+		node := &ast.BinaryOperation{
 			BaseNode: ast.BaseNode{Type: ast.NodeBinaryOperation},
 			Operator: op,
 			Left:     left,
 			Right:    right,
 		}
+		b.setLocation(node, startTok, b.previous())
+		left = node
 	}
 	
 	return left
 }
 
 func (b *Builder) parseBitwiseOr() ast.Node {
+	startTok := b.peek()
+
 	left := b.parseBitwiseXor()
 	
 	for b.check(lexer.BIT_OR) {
 		op := b.advance().Value
 		right := b.parseBitwiseXor()
-		left = &ast.BinaryOperation{
+		node := &ast.BinaryOperation{
 			BaseNode: ast.BaseNode{Type: ast.NodeBinaryOperation},
 			Operator: op,
 			Left:     left,
 			Right:    right,
 		}
+		b.setLocation(node, startTok, b.previous())
+		left = node
 	}
 	
 	return left
 }
 
 func (b *Builder) parseBitwiseXor() ast.Node {
+	startTok := b.peek()
+
 	left := b.parseBitwiseAnd()
 	
 	for b.check(lexer.BIT_XOR) {
 		op := b.advance().Value
 		right := b.parseBitwiseAnd()
-		left = &ast.BinaryOperation{
+		node := &ast.BinaryOperation{
 			BaseNode: ast.BaseNode{Type: ast.NodeBinaryOperation},
 			Operator: op,
 			Left:     left,
 			Right:    right,
 		}
+		b.setLocation(node, startTok, b.previous())
+		left = node
 	}
 	
 	return left
 }
 
 func (b *Builder) parseBitwiseAnd() ast.Node {
+	startTok := b.peek()
+
 	left := b.parseShift()
 	
 	for b.check(lexer.BIT_AND) {
 		op := b.advance().Value
 		right := b.parseShift()
-		left = &ast.BinaryOperation{
+		node := &ast.BinaryOperation{
 			BaseNode: ast.BaseNode{Type: ast.NodeBinaryOperation},
 			Operator: op,
 			Left:     left,
 			Right:    right,
 		}
+		b.setLocation(node, startTok, b.previous())
+		left = node
 	}
 	
 	return left
 }
 
 func (b *Builder) parseShift() ast.Node {
+	startTok := b.peek()
+
 	left := b.parseAdditive()
 	
 	for b.check(lexer.SHL) || b.check(lexer.SHR) || b.check(lexer.SAR) {
 		op := b.advance().Value
 		right := b.parseAdditive()
-		left = &ast.BinaryOperation{
+		node := &ast.BinaryOperation{
 			BaseNode: ast.BaseNode{Type: ast.NodeBinaryOperation},
 			Operator: op,
 			Left:     left,
 			Right:    right,
 		}
+		b.setLocation(node, startTok, b.previous())
+		left = node
 	}
 	
 	return left
 }
 
 func (b *Builder) parseAdditive() ast.Node {
+	startTok := b.peek()
+
 	left := b.parseMultiplicative()
 	
 	for b.check(lexer.ADD) || b.check(lexer.SUB) {
 		op := b.advance().Value
 		right := b.parseMultiplicative()
-		left = &ast.BinaryOperation{
+		node := &ast.BinaryOperation{
 			BaseNode: ast.BaseNode{Type: ast.NodeBinaryOperation},
 			Operator: op,
 			Left:     left,
 			Right:    right,
 		}
+		b.setLocation(node, startTok, b.previous())
+		left = node
 	}
 	
 	return left
 }
 
 func (b *Builder) parseMultiplicative() ast.Node {
+	startTok := b.peek()
+
 	left := b.parseExponentiation()
 	
 	for b.check(lexer.MUL) || b.check(lexer.DIV) || b.check(lexer.MOD) {
 		op := b.advance().Value
 		right := b.parseExponentiation()
-		left = &ast.BinaryOperation{
+		node := &ast.BinaryOperation{
 			BaseNode: ast.BaseNode{Type: ast.NodeBinaryOperation},
 			Operator: op,
 			Left:     left,
 			Right:    right,
 		}
+		b.setLocation(node, startTok, b.previous())
+		left = node
 	}
 	
 	return left
 }
 
 func (b *Builder) parseExponentiation() ast.Node {
+	startTok := b.peek()
+
 	left := b.parseUnary()
 	
 	if b.check(lexer.EXP) {
 		op := b.advance().Value
 		right := b.parseExponentiation() // Right associative
-		left = &ast.BinaryOperation{
+		node := &ast.BinaryOperation{
 			BaseNode: ast.BaseNode{Type: ast.NodeBinaryOperation},
 			Operator: op,
 			Left:     left,
 			Right:    right,
 		}
+		b.setLocation(node, startTok, b.previous())
+		left = node
 	}
 	
 	return left

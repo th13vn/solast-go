@@ -75,6 +75,19 @@ node type, so the public AST shape stays compatible). It is called from **both**
 unconsumed desynchronized the block; in assignment position it silently produced
 a truncated name instead.
 
+## Binary-operation locations (expressions.go)
+
+Every level of the precedence ladder captures `startTok := b.peek()` before parsing
+its left operand and calls `setLocation(node, startTok, b.previous())` on the
+`BinaryOperation` it builds, so the span covers the whole expression.
+
+This was missing entirely: `setLocation` already had a `*ast.BinaryOperation` case,
+but no ladder level ever called it, so **every** binary and comparison expression had
+a nil `Loc`/`Range`. Consumers that anchor on those nodes lost all position
+information — w3goaudit reported divide-before-multiply, boolean-cst, incorrect-exp,
+and unchecked-arithmetic findings against the enclosing FUNCTION's line instead of the
+operation's. When adding a new operator level, capture the start token the same way.
+
 ## Expression precedence ladder (expressions.go) — lowest → highest
 
 `parseExpression`(27) → `parseAssignment`(31) → `parseTernary`(49) → `parseLogicalOr`(69) → `parseLogicalAnd`(86) → `parseEquality`(103) → `parseRelational`(120) → `parseBitwiseOr`(137) → `parseBitwiseXor`(154) → `parseBitwiseAnd`(171) → `parseShift`(188) → `parseAdditive`(205) → `parseMultiplicative`(222) → `parseExponentiation`(239, right-assoc) → `parseUnary`(256) → `parsePostfix`(273) → `parseCallMemberIndex`(289) → `parsePrimary`(409). A new binary operator slots into the level matching its precedence; a new primary form (literal/keyword-expr) goes in `parsePrimary`.

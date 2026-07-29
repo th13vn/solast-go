@@ -1031,3 +1031,85 @@ func findLiterals(contract *ast.ContractDefinition) (*ast.HexLiteral, *ast.Strin
 	}
 	return hexLit, strLit
 }
+
+// TestBinaryOperationsCarrySourceLocation pins that every level of the precedence
+// ladder records a span.
+//
+// The ladder built BinaryOperation nodes without ever calling setLocation, so every
+// binary and comparison expression in every contract had a nil Loc/Range — even
+// though setLocation already had a *ast.BinaryOperation case. Downstream, w3goaudit
+// anchors findings on these nodes (divide-before-multiply, boolean-cst,
+// incorrect-exp, unchecked-arithmetic), so a finding fell back to reporting the
+// enclosing FUNCTION's line instead of the operation's.
+func TestBinaryOperationsCarrySourceLocation(t *testing.T) {
+	input := `pragma solidity ^0.8.20;
+contract A {
+    function f(uint256 a, uint256 b, bool p, bool q) public pure returns (uint256) {
+        uint256 s = a + b;
+        uint256 d = a - b;
+        uint256 m = a * b;
+        uint256 v = a / b;
+        uint256 e = a ** b;
+        uint256 r = a % b;
+        uint256 sh = a << b;
+        bool c = a < b;
+        bool eq = a == b;
+        bool land = p && q;
+        bool lor = p || q;
+        uint256 bits = a & b;
+        return s + d + m + v + e + r + sh + bits + (c ? 1 : 0) + (land ? 1 : 0) + (lor ? 1 : 0) + (eq ? 1 : 0);
+    }
+}`
+	result, err := Parse(input, &Options{Loc: true, Range: true})
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+
+	var missing []string
+	seen := map[string]bool{}
+	var walk func(ast.Node)
+	walk = func(n ast.Node) {
+		if n == nil {
+			return
+		}
+		if bin, ok := n.(*ast.BinaryOperation); ok {
+			seen[bin.Operator] = true
+			if bin.Loc == nil || bin.Range == nil {
+				missing = append(missing, bin.Operator)
+			} else if bin.Loc.Start.Line == 0 {
+				missing = append(missing, bin.Operator+" (line 0)")
+			}
+			walk(bin.Left)
+			walk(bin.Right)
+			return
+		}
+		switch v := n.(type) {
+		case *ast.ContractDefinition:
+			for _, m := range v.SubNodes {
+				walk(m)
+			}
+		case *ast.FunctionDefinition:
+			if v.Body != nil {
+				for _, s := range v.Body.Statements {
+					walk(s)
+				}
+			}
+		case *ast.VariableDeclarationStatement:
+			walk(v.InitialValue)
+		case *ast.ReturnStatement:
+			walk(v.Expression)
+		case *ast.Conditional:
+			walk(v.Condition)
+		}
+	}
+	for _, child := range result.Children {
+		walk(child)
+	}
+
+	if len(seen) < 10 {
+		t.Fatalf("walked only %d distinct operators (%v); the fixture or walker is wrong", len(seen), seen)
+	}
+	if len(missing) != 0 {
+		t.Errorf("binary operations with no source location: %v", missing)
+	}
+}
