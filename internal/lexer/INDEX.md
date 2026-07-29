@@ -42,6 +42,18 @@ type Token struct {
 
 **Internal scanners:** `readNumber` (662, dec/frac/exp, underscores), `readHexNumber` (703, `0x…`), `readString` (724, escapes, `'`/`"`), `readIdentifier` (534, classifies typed keywords via `isIntType`/`isUintType`/`isBytesNType`/`isFixedNType`/`isUfixedNType`), `skipWhitespaceAndComments` (495, `//` and `/* */`), `readOperator` (772, longest-match: 3-char `>>>`/`>>=`/`<<=` → 2-char → 1-char).
 
+**Prefixed string literals:** `readIdentifier` also emits `HEX_STRING` /
+`UNICODE_STRING` when the scanned word is exactly `hex` or `unicode` **and** the
+very next character is a quote (`hex"1900"`, `unicode"..."`). Solidity binds the
+prefix to the immediately following quote, so `hex` / `unicode` stay ordinary
+identifiers everywhere else. Both token types existed and [[builder]]
+`parseStringLiteral` already branched on them, but nothing ever produced them:
+the prefix lexed as a bare keyword and the quote became a separate `STRING`,
+which `parsePrimary` rejected with "expected expression" and — in tolerant mode —
+desynchronized the rest of the file. Underscore separators inside the body
+(`hex"19_00"`, OpenZeppelin v5 `MessageHashUtils`) need no special handling since
+the body is scanned as a string.
+
 ## Change checklist (new keyword/operator/literal)
 
 1. Add a `TokenType` constant (lexer.go:14-170).

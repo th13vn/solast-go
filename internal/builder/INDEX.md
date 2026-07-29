@@ -60,6 +60,21 @@ OpenZeppelin v5 / Solady, so this silently blanked whole library files for
 downstream consumers. Any future optional pre-block syntax must be consumed here
 too.
 
+## Yul paths (statements.go)
+
+Inside assembly, only dot-free identifiers can be **declared**, but a path may
+**refer** to a declaration outside the block: calldata slice members
+(`sig.offset`, `sig.length`) and storage-pointer members (`x.slot`, `x.offset`).
+Grammar: `yulPath: (YulIdentifier|YulEVMBuiltin) (YulPeriod (YulIdentifier|YulEVMBuiltin))*`.
+
+`parseAssemblyPathSuffix` consumes the `.member` segments after the head
+identifier and returns the full dotted text in the single `Name` field (no new
+node type, so the public AST shape stays compatible). It is called from **both**
+`parseAssemblyExpression` (operand position) and
+`parseAssemblyExpressionOrAssignment` (assignment targets). Leaving the `.`
+unconsumed desynchronized the block; in assignment position it silently produced
+a truncated name instead.
+
 ## Expression precedence ladder (expressions.go) — lowest → highest
 
 `parseExpression`(27) → `parseAssignment`(31) → `parseTernary`(49) → `parseLogicalOr`(69) → `parseLogicalAnd`(86) → `parseEquality`(103) → `parseRelational`(120) → `parseBitwiseOr`(137) → `parseBitwiseXor`(154) → `parseBitwiseAnd`(171) → `parseShift`(188) → `parseAdditive`(205) → `parseMultiplicative`(222) → `parseExponentiation`(239, right-assoc) → `parseUnary`(256) → `parsePostfix`(273) → `parseCallMemberIndex`(289) → `parsePrimary`(409). A new binary operator slots into the level matching its precedence; a new primary form (literal/keyword-expr) goes in `parsePrimary`.

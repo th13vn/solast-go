@@ -538,6 +538,25 @@ func (l *Lexer) readIdentifier(line, column int) Token {
 	}
 	value := l.input[start:l.pos]
 
+	// String-literal prefixes: hex"00ff" and unicode"...". Solidity binds these
+	// to the IMMEDIATELY following quote (no whitespace), so `hex` and `unicode`
+	// remain ordinary identifiers/keywords everywhere else. Without this, the
+	// prefix lexed as a bare keyword and the quote became a separate STRING,
+	// which parsePrimary rejected with "expected expression" and — in tolerant
+	// mode — desynchronized the rest of the file.
+	if (value == "hex" || value == "unicode") && l.pos < len(l.input) {
+		if quote := l.peek(); quote == '"' || quote == '\'' {
+			tok := l.readString(line, column)
+			if value == "hex" {
+				tok.Type = HEX_STRING
+			} else {
+				tok.Type = UNICODE_STRING
+			}
+			tok.Start = start
+			return tok
+		}
+	}
+
 	// Check for typed keywords (int, uint, bytes with size suffix)
 	tokenType := IDENTIFIER
 	if kw, ok := keywords[value]; ok {

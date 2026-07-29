@@ -830,3 +830,204 @@ func findInlineAssembly(contract *ast.ContractDefinition) *ast.InlineAssembly {
 	}
 	return nil
 }
+
+// TestParseAssemblyDottedPath covers Yul paths that contain dots. Only dot-free
+// identifiers can be DECLARED inside assembly, but a path may REFER to a
+// declaration outside the block — calldata slice members (`sig.offset`,
+// `sig.length`) and storage-pointer members (`x.slot`, `x.offset`). Grammar:
+// yulPath: (YulIdentifier|YulEVMBuiltin) (YulPeriod (YulIdentifier|YulEVMBuiltin))*.
+// Unparsed, the '.' desynchronized the block and shredded the rest of the file
+// (OpenZeppelin v5 ECDSA.sol/EIP712.sol).
+func TestParseAssemblyDottedPath(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"calldata slice offset", `r := calldataload(sig.offset)`},
+		{"nested in builtin", `s := calldataload(add(sig.offset, 0x20))`},
+		{"path as assignment target", `store.slot := 1`},
+		{"multi assign with path", `a, store.slot := f()`},
+		{"deep path", `r := mload(a.b.c)`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := `pragma solidity ^0.8.20;
+contract A {
+    function first(bytes calldata sig) external pure returns (bytes32 r, bytes32 s, uint256 a) {
+        assembly ("memory-safe") {
+            ` + tt.body + `
+        }
+    }
+    function second() public pure returns (uint256) { return 2; }
+    uint256 public third;
+}`
+			result, errs, err := ParseWithErrors(input, &Options{Tolerant: true})
+			if err != nil {
+				t.Fatalf("ParseWithErrors: %v", err)
+			}
+			if len(errs) != 0 {
+				t.Fatalf("expected a clean parse, got %d recovered error(s), first: %v", len(errs), errs[0])
+			}
+
+			contract := findContract(result, "A")
+			if contract == nil {
+				t.Fatal("contract A not found")
+			}
+			// Desync regression: members after the assembly block must survive.
+			var funcs, vars []string
+			for _, member := range contract.SubNodes {
+				switch n := member.(type) {
+				case *ast.FunctionDefinition:
+					funcs = append(funcs, n.Name)
+				case *ast.StateVariableDeclaration:
+					for _, v := range n.Variables {
+						vars = append(vars, v.Name)
+					}
+				}
+			}
+			if len(funcs) != 2 || funcs[1] != "second" {
+				t.Errorf("functions = %v, want [first second]", funcs)
+			}
+			if len(vars) != 1 || vars[0] != "third" {
+				t.Errorf("state variables = %v, want [third]", vars)
+			}
+			if asm := findInlineAssembly(contract); asm == nil || asm.Body == nil || len(asm.Body.Operations) == 0 {
+				t.Error("assembly body was not parsed")
+			}
+		})
+	}
+}
+
+// TestParsePrefixedStringLiterals covers the `hex"..."` and `unicode"..."`
+// literal prefixes. HEX_STRING and UNICODE_STRING token types existed and
+// parseStringLiteral already branched on them, but the lexer never produced
+// either: `hex` / `unicode` lexed as a bare keyword and the following quote
+// became a separate STRING, so parsePrimary hit "expected expression" and
+// desynchronized. `hex"19_00"` appears in OpenZeppelin v5 MessageHashUtils.
+func TestParsePrefixedStringLiterals(t *testing.T) {
+	tests := []struct {
+		name      string
+		expr      string
+		wantHex   bool
+		wantUni   bool
+		wantValue string
+		wantParts []string
+	}{
+		{"hex literal", `hex"1900"`, true, false, "1900", []string{"1900"}},
+		{"hex with underscores", `hex"19_00"`, true, false, "19_00", []string{"19_00"}},
+		{"empty hex", `hex""`, true, false, "", []string{""}},
+		{"concatenated hex", `hex"00" hex"11"`, true, false, "00", []string{"00", "11"}},
+		// Real non-ASCII text, which is what the unicode prefix exists for.
+		// Backslash-escape decoding inside readString is a separate concern.
+		{"unicode literal", `unicode"héllo ☃"`, false, true, "héllo ☃", []string{"héllo ☃"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := `pragma solidity ^0.8.20;
+contract A {
+    function first() public pure returns (bytes memory) { return abi.encodePacked(` + tt.expr + `); }
+    function second() public pure returns (uint256) { return 2; }
+    uint256 public third;
+}`
+			result, errs, err := ParseWithErrors(input, &Options{Tolerant: true})
+			if err != nil {
+				t.Fatalf("ParseWithErrors: %v", err)
+			}
+			if len(errs) != 0 {
+				t.Fatalf("expected a clean parse, got %d recovered error(s), first: %v", len(errs), errs[0])
+			}
+
+			contract := findContract(result, "A")
+			if contract == nil {
+				t.Fatal("contract A not found")
+			}
+			// Desync regression: members after the literal must survive.
+			var funcs, vars []string
+			for _, member := range contract.SubNodes {
+				switch n := member.(type) {
+				case *ast.FunctionDefinition:
+					funcs = append(funcs, n.Name)
+				case *ast.StateVariableDeclaration:
+					for _, v := range n.Variables {
+						vars = append(vars, v.Name)
+					}
+				}
+			}
+			if len(funcs) != 2 || funcs[1] != "second" {
+				t.Errorf("functions = %v, want [first second]", funcs)
+			}
+			if len(vars) != 1 || vars[0] != "third" {
+				t.Errorf("state variables = %v, want [third]", vars)
+			}
+
+			hex, uni := findLiterals(contract)
+			if tt.wantHex {
+				if hex == nil {
+					t.Fatal("expected a HexLiteral node")
+				}
+				if hex.Value != tt.wantValue {
+					t.Errorf("Value = %q, want %q", hex.Value, tt.wantValue)
+				}
+				if len(hex.Parts) != len(tt.wantParts) {
+					t.Fatalf("Parts = %v, want %v", hex.Parts, tt.wantParts)
+				}
+				for i, want := range tt.wantParts {
+					if hex.Parts[i] != want {
+						t.Errorf("Parts[%d] = %q, want %q", i, hex.Parts[i], want)
+					}
+				}
+			}
+			if tt.wantUni {
+				if uni == nil {
+					t.Fatal("expected a StringLiteral node")
+				}
+				if !uni.IsUnicode {
+					t.Error("IsUnicode = false, want true")
+				}
+				if uni.Value != tt.wantValue {
+					t.Errorf("Value = %q, want %q", uni.Value, tt.wantValue)
+				}
+			}
+		})
+	}
+}
+
+// findLiterals returns the first HexLiteral and StringLiteral found in the
+// arguments of any function call in the contract's function bodies.
+func findLiterals(contract *ast.ContractDefinition) (*ast.HexLiteral, *ast.StringLiteral) {
+	var hexLit *ast.HexLiteral
+	var strLit *ast.StringLiteral
+	var walk func(n ast.Node)
+	walk = func(n ast.Node) {
+		switch v := n.(type) {
+		case *ast.HexLiteral:
+			if hexLit == nil {
+				hexLit = v
+			}
+		case *ast.StringLiteral:
+			if strLit == nil {
+				strLit = v
+			}
+		case *ast.FunctionCall:
+			for _, arg := range v.Arguments {
+				walk(arg)
+			}
+		case *ast.ReturnStatement:
+			if v.Expression != nil {
+				walk(v.Expression)
+			}
+		}
+	}
+	for _, member := range contract.SubNodes {
+		fn, ok := member.(*ast.FunctionDefinition)
+		if !ok || fn.Body == nil {
+			continue
+		}
+		for _, stmt := range fn.Body.Statements {
+			walk(stmt)
+		}
+	}
+	return hexLit, strLit
+}

@@ -671,13 +671,14 @@ func (b *Builder) parseAssemblyFunctionDefinition() *ast.AssemblyFunctionDefinit
 func (b *Builder) parseAssemblyExpressionOrAssignment() ast.Node {
 	startTok := b.peek()
 	
-	// Parse identifier(s)
+	// Parse identifier(s). Each may be a dotted yulPath referring to a
+	// declaration outside the block (`slot.offset`, `x.slot`).
 	var names []*ast.Identifier
 	for {
 		nameTok := b.expect(lexer.IDENTIFIER)
 		names = append(names, &ast.Identifier{
 			BaseNode: ast.BaseNode{Type: ast.NodeIdentifier},
-			Name:     nameTok.Value,
+			Name:     b.parseAssemblyPathSuffix(nameTok.Value),
 		})
 		if !b.check(lexer.COMMA) {
 			break
@@ -733,6 +734,34 @@ func (b *Builder) parseAssemblyCall(name string, startTok lexer.Token) *ast.Asse
 	return node
 }
 
+// parseAssemblyPathSuffix consumes the `.member` segments of a Yul path whose
+// head identifier has already been read, and returns the full dotted name.
+//
+// Grammar (SolidityParser.g4): yulPath: (YulIdentifier | YulEVMBuiltin)
+// (YulPeriod (YulIdentifier | YulEVMBuiltin))*. Only dot-free identifiers can be
+// DECLARED inside assembly, but a path may REFER to a declaration outside the
+// block: calldata slice members (`sig.offset`, `sig.length`) and storage-pointer
+// members (`x.slot`, `x.offset`).
+//
+// The dotted text is kept in the single Name field rather than introducing a new
+// node type, so the public AST shape stays backward compatible. Leaving the '.'
+// unconsumed desynchronized the block and dropped the rest of the file.
+func (b *Builder) parseAssemblyPathSuffix(head string) string {
+	name := head
+	for b.check(lexer.PERIOD) {
+		b.advance() // .
+		// Yul member names may be builtins (`offset`, `length`, `slot`), which
+		// the lexer may classify as keywords rather than identifiers.
+		if b.check(lexer.IDENTIFIER) || b.isContextualKeyword() {
+			name += "." + b.advance().Value
+			continue
+		}
+		b.expect(lexer.IDENTIFIER)
+		break
+	}
+	return name
+}
+
 func (b *Builder) parseAssemblyExpression() ast.Node {
 	tok := b.peek()
 	
@@ -743,9 +772,9 @@ func (b *Builder) parseAssemblyExpression() ast.Node {
 		}
 		node := &ast.AssemblyIdentifier{
 			BaseNode: ast.BaseNode{Type: ast.NodeAssemblyIdentifier},
-			Name:     startTok.Value,
+			Name:     b.parseAssemblyPathSuffix(startTok.Value),
 		}
-		b.setLocation(node, startTok, startTok)
+		b.setLocation(node, startTok, b.previous())
 		return node
 	}
 	
