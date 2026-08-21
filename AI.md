@@ -1,6 +1,6 @@
 # solast-go — Repository Index (AI-readable)
 
-A hand-written Solidity parser in Go: source text → tokens → AST. Consumed by w3goaudit. This index maps the codebase for agents; each package has its own `INDEX.md` with file:line detail.
+A hand-written Solidity parser in Go: source text → tokens → AST. Consumed by w3goaudit. This index maps the codebase for agents; each package has its own `AI.md` with file:line detail.
 
 ## Pipeline
 
@@ -17,14 +17,14 @@ source .sol
 
 | Path | Role | INDEX |
 |------|------|-------|
-| `internal/lexer` | Tokenizer (keywords, literals, operators) | [internal/lexer/INDEX.md](internal/lexer/INDEX.md) |
-| `internal/builder` | Recursive-descent parser (authoritative) | [internal/builder/INDEX.md](internal/builder/INDEX.md) |
-| `pkg/ast` | AST node types + visitor walkers | [pkg/ast/INDEX.md](pkg/ast/INDEX.md) |
-| `pkg/parser` | Public API (import this) | [pkg/parser/INDEX.md](pkg/parser/INDEX.md) |
-| `pkg/version` | Solidity version/pragma detection | [pkg/version/INDEX.md](pkg/version/INDEX.md) |
-| `cmd/solast` | CLI (parse/validate/version-detect) | [cmd/solast/INDEX.md](cmd/solast/INDEX.md) |
-| `grammar` | Reference ANTLR `.g4` (NOT runtime) | [grammar/INDEX.md](grammar/INDEX.md) |
-| `scripts` | `generate.sh` (ANTLR, reference) | [scripts/INDEX.md](scripts/INDEX.md) |
+| `internal/lexer` | Tokenizer (keywords, literals, operators) | [internal/lexer/AI.md](internal/lexer/AI.md) |
+| `internal/builder` | Recursive-descent parser (authoritative) | [internal/builder/AI.md](internal/builder/AI.md) |
+| `pkg/ast` | AST node types + visitor walkers | [pkg/ast/AI.md](pkg/ast/AI.md) |
+| `pkg/parser` | Public API (import this) | [pkg/parser/AI.md](pkg/parser/AI.md) |
+| `pkg/version` | Solidity version/pragma detection | [pkg/version/AI.md](pkg/version/AI.md) |
+| `cmd/solast` | CLI (parse/validate/version-detect) | [cmd/solast/AI.md](cmd/solast/AI.md) |
+| `grammar` | Reference ANTLR `.g4` (NOT runtime) | [grammar/AI.md](grammar/AI.md) |
+| `scripts` | `generate.sh` (ANTLR, reference) | [scripts/AI.md](scripts/AI.md) |
 
 ## Key facts for agents
 

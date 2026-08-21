@@ -1,6 +1,6 @@
 # Architecture
 
-How solast-go turns Solidity source into an AST, and where each responsibility lives. For per-package detail with file:line references, read each package's `INDEX.md`.
+How solast-go turns Solidity source into an AST, and where each responsibility lives. For per-package detail with file:line references, read each package's `AI.md`.
 
 ## The pipeline
 
