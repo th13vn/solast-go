@@ -91,3 +91,47 @@ contract A { function f( external { uint256 x = ; } }`
 		t.Fatal("ParseWithErrors must surface recovered errors in tolerant mode")
 	}
 }
+
+// TestLocalVarContextualKeyword guards the same desync class one level down: a
+// *local variable* whose name is a contextual keyword. `UserInfo storage from =
+// userInfo[t][_from];` is real production shape (Penpie's MasterPenpie), and the
+// statement-level lookahead that decides declaration-vs-expression only accepted
+// a bare IDENTIFIER as the name. `from` lexes as FROM, so the statement fell
+// through to the expression path, failed on `storage`, and in tolerant mode shed
+// every function declared after it.
+func TestLocalVarContextualKeyword(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+	}{
+		{"storage_from", `pragma solidity ^0.8.20;
+contract A { struct S { uint256 a; } mapping(address => S) m;
+function g() external { S storage from = m[msg.sender]; from.a = 1; }
+function f() external pure returns (uint256) { return 1; } }`},
+		{"memory_error", `pragma solidity ^0.8.20;
+contract A { struct S { uint256 a; } 
+function g() external pure { S memory error; error.a = 1; }
+function f() external pure returns (uint256) { return 1; } }`},
+		{"elementary_from", `pragma solidity ^0.8.20;
+contract A { function g() external pure { address from = address(0); from; }
+function f() external pure returns (uint256) { return 1; } }`},
+		{"calldata_global", `pragma solidity ^0.8.20;
+contract A { function g(bytes calldata b) external pure { bytes calldata global = b; global; }
+function f() external pure returns (uint256) { return 1; } }`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Function survival alone is too weak here: tolerant recovery can
+			// resync at the next `}` and still hand back both functions while
+			// having dropped the declaration. Assert a clean parse instead.
+			if _, errs, err := ParseWithErrors(tc.src, &Options{Tolerant: true}); err != nil {
+				t.Fatalf("Parse failed: %v", err)
+			} else if len(errs) != 0 {
+				t.Fatalf("expected a clean parse, got %d recovered error(s): %v", len(errs), errs)
+			}
+			if got := countFns(t, tc.src); got != 2 {
+				t.Fatalf("expected both functions to survive, got %d (parser desynced on contextual-keyword local variable)", got)
+			}
+		})
+	}
+}

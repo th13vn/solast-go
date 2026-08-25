@@ -110,7 +110,7 @@ func (b *Builder) looksLikeVariableDeclaration() bool {
 	// Skip type path like A.B.C
 	for b.check(lexer.PERIOD) {
 		b.advance() // .
-		if b.check(lexer.IDENTIFIER) {
+		if b.check(lexer.IDENTIFIER) || b.isContextualKeyword() {
 			b.advance()
 		}
 	}
@@ -120,9 +120,13 @@ func (b *Builder) looksLikeVariableDeclaration() bool {
 		b.advance()
 	}
 	
-	// If followed by identifier, it's a variable declaration
-	// e.g., "uint256 x" or "MyType myVar"
-	if b.check(lexer.IDENTIFIER) {
+	// If followed by a declaration name, it's a variable declaration
+	// e.g., "uint256 x" or "MyType myVar". The name may legally be a contextual
+	// keyword — `UserInfo storage from = ...` is ordinary Solidity — and
+	// parseVariableDeclaration already accepts one, so this lookahead must too.
+	// Otherwise the statement falls through to the expression path, dies on the
+	// storage location, and desyncs the tolerant parser for the rest of the file.
+	if b.check(lexer.IDENTIFIER) || b.isContextualKeyword() {
 		return true
 	}
 	
