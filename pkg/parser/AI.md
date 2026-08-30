@@ -35,3 +35,6 @@ type Options struct {
 
 - `parser_test.go` — broad construct coverage (the main suite).
 - `struct_contextual_keyword_test.go` — regression for the contextual-keyword member desync (struct field / enum value named `from`) and `ParseWithErrors` surfacing tolerant errors.
+- `TestLocalVarContextualKeyword` proves the v0.1.11 local-declaration repair:
+  storage, memory, elementary, and calldata declarations may use contextual
+  keyword names without recovered errors or loss of later functions.

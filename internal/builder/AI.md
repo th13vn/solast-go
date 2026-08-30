@@ -42,6 +42,11 @@ type Error   struct { Message string; Line, Column int } // builder.go:13
 - `synchronize` (84): skips to the next `;` or top-level keyword after an error.
 - `isContextualKeyword()` (121): `FROM|ERROR|REVERT|GLOBAL|TRANSIENT|LAYOUT|AT` — keywords usable as identifiers.
 - `expectMemberName()` (136): identifier **or** contextual keyword; **use this for every declaration NAME** (struct members types.go:353, enum values types.go:388) instead of bare `expect(IDENTIFIER)`, or a member named `from` desyncs the parser and silently drops the rest of the contract.
+- `looksLikeVariableDeclaration()` in `statements.go` must accept contextual
+  keywords both in dotted type paths and as the local declaration name. Since
+  v0.1.11 this matches `parseVariableDeclaration`, so `UserInfo storage from =
+  ...` cannot fall through to expression parsing and shred later functions in
+  tolerant mode.
 - `setLocation(node, start, end)` (150): fills `Loc`/`Range` when enabled; has a per-node-type switch — **add a case for every new AST node** or it won't get source positions.
 
 ## Inline assembly (statements.go)

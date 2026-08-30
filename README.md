@@ -168,6 +168,13 @@ v1.Equal(v2)          // bool
 | 0.7.x   | Free functions, file-level `using`, `gwei`, `immutable`                               |
 | 0.8.x   | `unchecked`, custom errors, user-defined types, named mappings, `transient`, `layout` |
 
+### Parser compatibility note
+
+Version 0.1.11 accepts Solidity contextual keywords as local declaration
+names. Production shapes such as `UserInfo storage from = ...` now remain on
+the declaration path instead of desynchronizing tolerant parsing and hiding
+later functions from downstream analyzers.
+
 ## Development
 
 ```bash
