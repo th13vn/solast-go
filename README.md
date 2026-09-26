@@ -182,6 +182,15 @@ Earlier versions sent these to the declaration path, recovered on the `(`, and
 dropped the statement, so downstream analyzers saw the enclosing function
 without that call. Upgrade if you build call graphs or detect low-level calls.
 
+Version 0.1.13 clears the parse-loss backlog found on 507 verified
+contracts (166 tolerant diagnostics down to 1): EVM builtins spelled like
+Solidity keywords inside assembly (`address()`, `return(p, n)`,
+`revert(p, n)`), Yul functions with `->` return variables, dotted entries in
+`using { L.f } for T` lists, custom-error parameters named with a contextual
+keyword, identifier-led `for` initializers, locals with a dotted array type,
+and tuple assignments with `a[i].m` targets. Assembly-heavy libraries such as
+Solady and OpenZeppelin `Address` now keep their `return`/`revert` statements.
+
 ## Development
 
 ```bash
