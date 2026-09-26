@@ -175,6 +175,13 @@ names. Production shapes such as `UserInfo storage from = ...` now remain on
 the declaration path instead of desynchronizing tolerant parsing and hiding
 later functions from downstream analyzers.
 
+Version 0.1.12 parses a statement that starts with an elementary type
+conversion, such as `address(target).call(data)`,
+`address(target).delegatecall(data)` or `address(target).staticcall(data)`.
+Earlier versions sent these to the declaration path, recovered on the `(`, and
+dropped the statement, so downstream analyzers saw the enclosing function
+without that call. Upgrade if you build call graphs or detect low-level calls.
+
 ## Development
 
 ```bash

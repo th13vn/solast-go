@@ -37,17 +37,19 @@ type Error   struct { Message string; Line, Column int } // builder.go:13
 
 ## Token navigation & recovery (helpers.go) — READ BEFORE EDITING
 
-- `peek` (12) / `previous` (19) / `advance` (26) / `check(t)` (33) / `isAtEnd` (40).
-- `expect(t)` (44): on match advance+return; on mismatch `addError`. **TOLERANT MODE: does NOT advance on mismatch** (lets `synchronize` recover). Non-tolerant: advances to avoid infinite loops. *This is the trap behind the historical `from`-field desync bug.*
-- `synchronize` (84): skips to the next `;` or top-level keyword after an error.
-- `isContextualKeyword()` (121): `FROM|ERROR|REVERT|GLOBAL|TRANSIENT|LAYOUT|AT` — keywords usable as identifiers.
-- `expectMemberName()` (136): identifier **or** contextual keyword; **use this for every declaration NAME** (struct members types.go:353, enum values types.go:388) instead of bare `expect(IDENTIFIER)`, or a member named `from` desyncs the parser and silently drops the rest of the contract.
+- `peek` (12) / `previous` (19) / `advance` (26) / `check(t)` (33) / `nextTokenIs(t)` (44, one token of lookahead, consumes nothing) / `isAtEnd` (51).
+- `expect(t)` (55): on match advance+return; on mismatch `addError`. **TOLERANT MODE: does NOT advance on mismatch** (lets `synchronize` recover). Non-tolerant: advances to avoid infinite loops. *This is the trap behind the historical `from`-field desync bug.*
+- `synchronize` (95): skips to the next `;` or top-level keyword after an error.
+- `isContextualKeyword()` (132): `FROM|ERROR|REVERT|GLOBAL|TRANSIENT|LAYOUT|AT` — keywords usable as identifiers.
+- `expectMemberName()` (147): identifier **or** contextual keyword; **use this for every declaration NAME** (struct members types.go:353, enum values types.go:388) instead of bare `expect(IDENTIFIER)`, or a member named `from` desyncs the parser and silently drops the rest of the contract.
 - `looksLikeVariableDeclaration()` in `statements.go` must accept contextual
   keywords both in dotted type paths and as the local declaration name. Since
   v0.1.11 this matches `parseVariableDeclaration`, so `UserInfo storage from =
   ...` cannot fall through to expression parsing and shred later functions in
-  tolerant mode.
-- `setLocation(node, start, end)` (150): fills `Loc`/`Range` when enabled; has a per-node-type switch — **add a case for every new AST node** or it won't get source positions.
+  tolerant mode. Since v0.1.12 a leading elementary type followed by `(` is a
+  conversion, never a declaration (`nextTokenIs(LPAREN)`), so
+  `address(x).call(b);` stays an expression statement instead of being dropped.
+- `setLocation(node, start, end)` (161): fills `Loc`/`Range` when enabled; has a per-node-type switch — **add a case for every new AST node** or it won't get source positions.
 
 ## Inline assembly (statements.go)
 

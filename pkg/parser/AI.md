@@ -38,3 +38,10 @@ type Options struct {
 - `TestLocalVarContextualKeyword` proves the v0.1.11 local-declaration repair:
   storage, memory, elementary, and calldata declarations may use contextual
   keyword names without recovered errors or loss of later functions.
+- `elementary_conversion_call_test.go` proves the v0.1.12 repair:
+  `address(x).call/.delegatecall/.staticcall`, `{value: ...}` calls, the
+  OpenZeppelin `Address` helper idiom, assigned results and `uint256(n)` /
+  `bytes32(h)` member calls at statement start parse with no recovered errors
+  and keep their call node. The declaration side asserts a
+  `VariableDeclarationStatement` node, because parameters are
+  `VariableDeclaration` nodes too and would satisfy a weaker check.
