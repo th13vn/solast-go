@@ -969,9 +969,18 @@ func isHexDigit(ch byte) bool {
 	return isDigit(ch) || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F')
 }
 
-// IsKeyword checks if a token type is a keyword
+// IsKeyword checks if a token type is a keyword – a reserved or contextual
+// keyword with an identifier-shaped spelling. The Yul parser relies on it to
+// accept the Solidity-only keywords as Yul identifiers (`address()`,
+// `return(p, n)`, `revert(p, n)`).
+//
+// The keyword tokens are declared contiguously from ABSTRACT to AT in the
+// TokenType block; a new keyword token must stay inside that range.
+// LAYOUT and AT were appended after WHILE, which the old ABSTRACT..WHILE range
+// silently excluded. TestIsKeywordCoversEveryWordToken checks the range
+// against the keyword table.
 func IsKeyword(t TokenType) bool {
-	return t >= ABSTRACT && t <= WHILE
+	return t >= ABSTRACT && t <= AT
 }
 
 // IsIdentifier checks if a rune is valid in an identifier

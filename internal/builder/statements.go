@@ -108,6 +108,17 @@ func (b *Builder) looksLikeVariableDeclaration() bool {
 	// Skip the identifier (potential type name)
 	b.advance()
 	
+	// Skip type path like A.B.C. The path comes BEFORE any array dimensions
+	// (`Storage.Assimilator[] memory x`); skipping brackets first left the
+	// `.Assimilator` unread, so the lookahead met `[` instead of a location
+	// or name and sent the declaration down the expression path.
+	for b.check(lexer.PERIOD) {
+		b.advance() // .
+		if b.check(lexer.IDENTIFIER) || b.isContextualKeyword() {
+			b.advance()
+		}
+	}
+	
 	// Skip array dimensions like [10] or []
 	for b.check(lexer.LBRACK) {
 		b.advance() // [
@@ -116,14 +127,6 @@ func (b *Builder) looksLikeVariableDeclaration() bool {
 		}
 		if b.check(lexer.RBRACK) {
 			b.advance() // ]
-		}
-	}
-	
-	// Skip type path like A.B.C
-	for b.check(lexer.PERIOD) {
-		b.advance() // .
-		if b.check(lexer.IDENTIFIER) || b.isContextualKeyword() {
-			b.advance()
 		}
 	}
 	
@@ -179,10 +182,14 @@ func (b *Builder) parseForStatement() *ast.ForStatement {
 		BaseNode: ast.BaseNode{Type: ast.NodeForStatement},
 	}
 	
-	// Init
+	// Init. Use the same declaration lookahead as a statement: isTypeName()
+	// is true for ANY identifier, so `for (i = 0; ...)` became a nameless
+	// declaration of type `i` and `for (y >>= 1; ...)` failed on the `>>=`.
 	if !b.check(lexer.SEMICOLON) {
-		if b.isTypeName() {
+		if b.looksLikeVariableDeclaration() {
 			node.InitExpression = b.parseVariableDeclarationStatement()
+		} else if b.check(lexer.LPAREN) {
+			node.InitExpression = b.parseTupleVariableDeclarationOrExpression()
 		} else {
 			node.InitExpression = b.parseExpressionStatement()
 		}
@@ -529,11 +536,14 @@ func (b *Builder) parseAssemblyStatement_() ast.Node {
 		return b.parseAssemblySwitch()
 	case lexer.FUNCTION:
 		return b.parseAssemblyFunctionDefinition()
-	case lexer.IDENTIFIER:
-		return b.parseAssemblyExpressionOrAssignment()
 	default:
 		if tok.Type == lexer.RBRACE {
 			return nil
+		}
+		// An identifier, or a builtin spelled like a Solidity keyword
+		// (`return(0, 0x20)`, `revert(p, n)`), starts a call or assignment.
+		if b.isYulIdentifier() {
+			return b.parseAssemblyExpressionOrAssignment()
 		}
 		b.advance()
 		return nil
@@ -550,7 +560,7 @@ func (b *Builder) parseAssemblyLocalDefinition() *ast.AssemblyLocalDefinition {
 	
 	// Parse identifier list
 	for {
-		nameTok := b.expect(lexer.IDENTIFIER)
+		nameTok := b.expectYulIdentifier()
 		node.Names = append(node.Names, &ast.Identifier{
 			BaseNode: ast.BaseNode{Type: ast.NodeIdentifier},
 			Name:     nameTok.Value,
@@ -641,7 +651,7 @@ func (b *Builder) parseAssemblySwitch() *ast.AssemblySwitch {
 func (b *Builder) parseAssemblyFunctionDefinition() *ast.AssemblyFunctionDefinition {
 	startTok := b.advance() // function
 	
-	nameTok := b.expect(lexer.IDENTIFIER)
+	nameTok := b.expectYulIdentifier()
 	
 	node := &ast.AssemblyFunctionDefinition{
 		BaseNode: ast.BaseNode{Type: ast.NodeAssemblyFunctionDefinition},
@@ -651,7 +661,7 @@ func (b *Builder) parseAssemblyFunctionDefinition() *ast.AssemblyFunctionDefinit
 	b.expect(lexer.LPAREN)
 	// Arguments
 	for !b.check(lexer.RPAREN) && !b.isAtEnd() {
-		argTok := b.expect(lexer.IDENTIFIER)
+		argTok := b.expectYulIdentifier()
 		node.Arguments = append(node.Arguments, &ast.Identifier{
 			BaseNode: ast.BaseNode{Type: ast.NodeIdentifier},
 			Name:     argTok.Value,
@@ -662,11 +672,13 @@ func (b *Builder) parseAssemblyFunctionDefinition() *ast.AssemblyFunctionDefinit
 	}
 	b.expect(lexer.RPAREN)
 	
-	// Return values
-	if b.check(lexer.ARROW) {
+	// Return values. The lexer produces RIGHT_ARROW for `->`; checking for
+	// ARROW (`=>`) made every Yul function with return variables fail at the
+	// arrow and swallow the rest of the file.
+	if b.check(lexer.RIGHT_ARROW) {
 		b.advance() // ->
 		for {
-			retTok := b.expect(lexer.IDENTIFIER)
+			retTok := b.expectYulIdentifier()
 			node.ReturnArguments = append(node.ReturnArguments, &ast.Identifier{
 				BaseNode: ast.BaseNode{Type: ast.NodeIdentifier},
 				Name:     retTok.Value,
@@ -691,7 +703,7 @@ func (b *Builder) parseAssemblyExpressionOrAssignment() ast.Node {
 	// declaration outside the block (`slot.offset`, `x.slot`).
 	var names []*ast.Identifier
 	for {
-		nameTok := b.expect(lexer.IDENTIFIER)
+		nameTok := b.expectYulIdentifier()
 		names = append(names, &ast.Identifier{
 			BaseNode: ast.BaseNode{Type: ast.NodeIdentifier},
 			Name:     b.parseAssemblyPathSuffix(nameTok.Value),
@@ -766,9 +778,10 @@ func (b *Builder) parseAssemblyPathSuffix(head string) string {
 	name := head
 	for b.check(lexer.PERIOD) {
 		b.advance() // .
-		// Yul member names may be builtins (`offset`, `length`, `slot`), which
-		// the lexer may classify as keywords rather than identifiers.
-		if b.check(lexer.IDENTIFIER) || b.isContextualKeyword() {
+		// Yul member names may be builtins (`offset`, `length`, `slot`) or
+		// Solidity keywords (`g.address` on an external function pointer),
+		// which the lexer classifies as keywords rather than identifiers.
+		if b.isYulIdentifier() {
 			name += "." + b.advance().Value
 			continue
 		}
@@ -779,9 +792,7 @@ func (b *Builder) parseAssemblyPathSuffix(head string) string {
 }
 
 func (b *Builder) parseAssemblyExpression() ast.Node {
-	tok := b.peek()
-	
-	if tok.Type == lexer.IDENTIFIER {
+	if b.isYulIdentifier() {
 		startTok := b.advance()
 		if b.check(lexer.LPAREN) {
 			return b.parseAssemblyCall(startTok.Value, startTok)
@@ -861,13 +872,19 @@ func (b *Builder) parseTupleVariableDeclarationOrExpression() ast.Node {
 	// Look ahead to determine if this is a tuple declaration
 	// This is a simplified version - full implementation would need more lookahead
 	
+	// Backtrack point for the expression fallback: BEFORE the '(' so the
+	// expression parser sees the whole tuple. Restoring to after it made
+	// `(items[i].ok, items[i].data) = g();` parse as `items[i].ok` followed
+	// by a stray ',' and drop the statement. Errors recorded while
+	// speculating belong to the abandoned reading, so they are dropped too.
+	savedPos := b.pos
+	savedErrors := len(b.errors)
+	
 	b.expect(lexer.LPAREN)
 	
 	// Try to parse as tuple declaration first
 	var variables []*ast.VariableDeclaration
 	var hasTypes bool
-	
-	savedPos := b.pos
 	
 	for !b.check(lexer.RPAREN) && !b.isAtEnd() {
 		if b.check(lexer.COMMA) {
@@ -912,6 +929,7 @@ func (b *Builder) parseTupleVariableDeclarationOrExpression() ast.Node {
 	
 	// Not a tuple declaration, restore and parse as expression
 	b.pos = savedPos
+	b.errors = b.errors[:savedErrors]
 	return b.parseExpressionStatement()
 }
 

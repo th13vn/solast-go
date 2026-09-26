@@ -151,6 +151,39 @@ func (b *Builder) expectMemberName() lexer.Token {
 	return b.expect(lexer.IDENTIFIER)
 }
 
+// isYulIdentifier reports whether the current token can be a Yul identifier:
+// a variable, a user function, or an EVM builtin, including the builtins
+// spelled like Solidity keywords: `address`, `return` and `revert`.
+//
+// The lexer tokenizes assembly with the Solidity keyword table, but Yul has its
+// own, much smaller one. A Solidity-only keyword is an ordinary identifier
+// inside assembly, and several EVM builtins are spelled like Solidity keywords.
+// Accepting only IDENTIFIER made `mstore(0x14, address())` fail on the `(` and
+// desynchronize the rest of the file, and it silently dropped every
+// `return(p, n)` / `revert(p, n)` statement whose arguments were literals.
+// Yul's own keywords and literals keep their meaning.
+func (b *Builder) isYulIdentifier() bool {
+	t := b.peek().Type
+	switch t {
+	case lexer.IDENTIFIER:
+		return true
+	case lexer.LET, lexer.IF, lexer.FOR, lexer.SWITCH, lexer.CASE, lexer.DEFAULT,
+		lexer.FUNCTION, lexer.BREAK, lexer.CONTINUE, lexer.TRUE, lexer.FALSE, lexer.HEX:
+		return false
+	}
+	return lexer.IsKeyword(t)
+}
+
+// expectYulIdentifier consumes a Yul identifier (see isYulIdentifier), falling
+// back to expect(IDENTIFIER) so a genuinely missing name still reports the
+// usual error.
+func (b *Builder) expectYulIdentifier() lexer.Token {
+	if b.isYulIdentifier() {
+		return b.advance()
+	}
+	return b.expect(lexer.IDENTIFIER)
+}
+
 // locationSetter is an interface for nodes that can have location set
 type locationSetter interface {
 	setLoc(*ast.Location)

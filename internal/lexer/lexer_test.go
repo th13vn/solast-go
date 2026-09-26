@@ -96,3 +96,21 @@ func TestBasicTypes(t *testing.T) {
 	}
 }
 
+
+// TestIsKeywordCoversEveryWordToken pins IsKeyword, which the Yul parser relies
+// on to accept Solidity-only keywords (`address`, `return`, `revert`, `from`,
+// `layout`, `at`, ...) as Yul identifiers. It must be true for every entry of
+// the keyword table and false for identifiers, literals and punctuation.
+func TestIsKeywordCoversEveryWordToken(t *testing.T) {
+	for word, tt := range keywords {
+		if !IsKeyword(tt) {
+			t.Errorf("keyword %q (%s) is not reported by IsKeyword", word, tt)
+		}
+	}
+	for _, tt := range []TokenType{EOF, ILLEGAL, COMMENT, IDENTIFIER, NUMBER, HEX_NUMBER,
+		STRING, HEX_STRING, UNICODE_STRING, LPAREN, RBRACE, PERIOD, COMMA, ASSIGN, RIGHT_ARROW} {
+		if IsKeyword(tt) {
+			t.Errorf("%s must not be reported as a keyword", tt)
+		}
+	}
+}

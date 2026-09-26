@@ -481,8 +481,11 @@ func (b *Builder) parseErrorDefinition() *ast.ErrorDefinition {
 			TypeName: typeName,
 		}
 		
-		// name (optional)
-		if b.check(lexer.IDENTIFIER) {
+		// name (optional) - can be identifier or contextual keyword, as in
+		// `error DeploymentFailed(bytes error);`, exactly like event and
+		// function parameters. Accepting only IDENTIFIER left the name for
+		// expect(COMMA) and desynchronized the rest of the unit.
+		if b.check(lexer.IDENTIFIER) || b.isContextualKeyword() {
 			paramNameTok := b.advance()
 			param.Name = paramNameTok.Value
 			param.Identifier = &ast.Identifier{
@@ -515,8 +518,10 @@ func (b *Builder) parseUsingDirective() *ast.UsingForDeclaration {
 		// using { func1, func2 } for Type
 		b.advance() // {
 		for !b.check(lexer.RBRACE) && !b.isAtEnd() {
-			funcTok := b.expect(lexer.IDENTIFIER)
-			node.Functions = append(node.Functions, funcTok.Value)
+			// Each entry is an identifierPath (`Casting.intoSD59x18`), kept
+			// as its dotted text. Reading a single IDENTIFIER died on the `.`
+			// and, in tolerant mode, dropped every later using directive.
+			node.Functions = append(node.Functions, b.parseUsingFunctionPath())
 			
 			// Check for operator
 			if b.check(lexer.AS) {
@@ -553,6 +558,18 @@ func (b *Builder) parseUsingDirective() *ast.UsingForDeclaration {
 	endTok := b.expect(lexer.SEMICOLON)
 	b.setLocation(node, startTok, endTok)
 	return node
+}
+
+// parseUsingFunctionPath reads one entry of a `using { ... } for T` list: an
+// identifierPath such as `add` or `Casting.intoSD59x18` (every prb-math
+// ValueType.sol uses the qualified form). Returns the dotted text.
+func (b *Builder) parseUsingFunctionPath() string {
+	parts := []string{b.expect(lexer.IDENTIFIER).Value}
+	for b.check(lexer.PERIOD) {
+		b.advance() // .
+		parts = append(parts, b.expect(lexer.IDENTIFIER).Value)
+	}
+	return strings.Join(parts, ".")
 }
 
 func (b *Builder) parseUserDefinedValueTypeDefinition() *ast.UserDefinedValueTypeDefinition {

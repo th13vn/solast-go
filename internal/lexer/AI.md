@@ -36,7 +36,7 @@ type Token struct {
 - `New(input string) *Lexer` (lexer.go:418)
 - `(*Lexer) NextToken() Token` (lexer.go:428) — skips whitespace/comments, dispatches by first rune
 - `(*Lexer) Tokenize() []Token` (lexer.go:925) — full stream
-- `IsKeyword(TokenType) bool` (lexer.go:954) — true for the ABSTRACT..WHILE range
+- `IsKeyword(TokenType) bool` (lexer.go:982) – true for the ABSTRACT..AT range (every entry of the keyword table; `TestIsKeywordCoversEveryWordToken` guards it). The old ABSTRACT..WHILE range missed `layout` and `at`, which were appended after `WHILE`. The Yul parser uses it to treat Solidity-only keywords as Yul identifiers, so keep any new keyword token inside the range
 - `IsIdentifier(rune) bool` (lexer.go:959)
 - `(TokenType) String() string` (lexer.go:311)
 

@@ -42,6 +42,10 @@ type Error   struct { Message string; Line, Column int } // builder.go:13
 - `synchronize` (95): skips to the next `;` or top-level keyword after an error.
 - `isContextualKeyword()` (132): `FROM|ERROR|REVERT|GLOBAL|TRANSIENT|LAYOUT|AT` — keywords usable as identifiers.
 - `expectMemberName()` (147): identifier **or** contextual keyword; **use this for every declaration NAME** (struct members types.go:353, enum values types.go:388) instead of bare `expect(IDENTIFIER)`, or a member named `from` desyncs the parser and silently drops the rest of the contract.
+- `isYulIdentifier()` / `expectYulIdentifier()`: inside assembly, any keyword
+  token that is not a Yul keyword (`let if for switch case default function
+  break continue true false hex`) is an ordinary Yul identifier. Use these, not
+  `check(IDENTIFIER)`, for every Yul name, operand, call head and path member.
 - `looksLikeVariableDeclaration()` in `statements.go` must accept contextual
   keywords both in dotted type paths and as the local declaration name. Since
   v0.1.11 this matches `parseVariableDeclaration`, so `UserInfo storage from =
@@ -67,6 +71,36 @@ OpenZeppelin v5 / Solady, so this silently blanked whole library files for
 downstream consumers. Any future optional pre-block syntax must be consumed here
 too.
 
+## Yul identifiers spelled like Solidity keywords (statements.go)
+
+The lexer tokenizes assembly with the Solidity keyword table, so the EVM
+builtins `address`, `return` and `revert` (and any Solidity-only keyword used
+as a Yul name, such as `from` or `error`) arrive as keyword tokens. The Yul
+parser used to accept only `IDENTIFIER`:
+
+- `mstore(0x14, address())` read `address` as a literal, failed on the `(`, and
+  desynchronized the rest of the file (solady `ERC20.sol`, euler `Dispatch.sol`).
+- `revert(p, 0x44)` in statement position was skipped token by token until an
+  identifier argument started a bogus statement (v4-core `CustomRevert.sol`).
+- with literal-only arguments, `return(0, 0x20)` / `revert(0, 0)` vanished
+  with NO recovered error: silent AST loss in every OpenZeppelin `Address.sol`.
+
+`parseAssemblyStatement_`, `parseAssemblyExpression`,
+`parseAssemblyExpressionOrAssignment`, `parseAssemblyLocalDefinition`,
+`parseAssemblyFunctionDefinition` and `parseAssemblyPathSuffix` all go through
+`isYulIdentifier` / `expectYulIdentifier`. The same rule covers the external
+function pointer members `g.address` / `g.selector`.
+
+Yul function return variables follow `->`, which the lexer emits as
+`RIGHT_ARROW`; the parser used to test for `ARROW` (`=>`), so every
+`function f(a) -> b { ... }` desynchronized the rest of the file.
+
+Known gap, deliberately untouched: Yul `:=` still lexes as `COLON` + `ASSIGN`,
+so `let x := e` and `x := e` come out as a bare definition/identifier followed
+by a separate expression statement. w3goaudit works around this by rewriting
+the colon to a space inside assembly before parsing
+(`normalizeYulAssignmentsForParser`).
+
 ## Yul paths (statements.go)
 
 Inside assembly, only dot-free identifiers can be **declared**, but a path may
@@ -81,6 +115,36 @@ node type, so the public AST shape stays compatible). It is called from **both**
 `parseAssemblyExpressionOrAssignment` (assignment targets). Leaving the `.`
 unconsumed desynchronized the block; in assignment position it silently produced
 a truncated name instead.
+
+## Declarations vs expressions at statement start (statements.go)
+
+- `looksLikeVariableDeclaration` skips the `.member` type path BEFORE array
+  dimensions, matching the grammar (`Storage.Assimilator[] memory x`). The old
+  order met `[` where it expected a location or name and sent the declaration
+  down the expression path, which died on `memory`.
+- The for-loop init clause uses the same dispatch as a statement
+  (`looksLikeVariableDeclaration`, then tuple, then expression). It used
+  `isTypeName()`, which is true for ANY identifier, so `for (y >>= 1; ...)`
+  failed on `>>=` and `for (i = 0; ...)` was recorded as a nameless
+  declaration of type `i` (now an assignment `ExpressionStatement`).
+- `parseTupleVariableDeclarationOrExpression` backtracks to BEFORE the `(`
+  when the tuple is not a declaration, and drops the errors recorded while
+  speculating. Restoring to after the `(` made
+  `(items[i].ok, items[i].data) = g();` fail on the first comma.
+- Known gap, deliberately untouched: a tuple assignment whose components all
+  parse as type names, e.g. `(a, b) = g();` or `(s.x, t) = g();`, is still
+  returned as a `VariableDeclarationStatement` with nameless variables whose
+  `typeName` is the assignment target. Changing that alters the AST of every
+  such assignment for consumers and needs a coordinated w3goaudit change.
+
+## Definitions (types.go)
+
+- `using { ... } for T` list entries are identifier paths
+  (`parseUsingFunctionPath`), kept as dotted text in `Functions`
+  (`Casting.intoSD59x18`, prb-math `ValueType.sol`). Reading one `IDENTIFIER`
+  died on the `.` and dropped every later using directive in the file.
+- Custom-error parameter names accept contextual keywords like event and
+  function parameters do (`error DeploymentFailed(bytes error);`, Axelar).
 
 ## Binary-operation locations (expressions.go)
 

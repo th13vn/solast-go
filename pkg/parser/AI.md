@@ -38,6 +38,15 @@ type Options struct {
 - `TestLocalVarContextualKeyword` proves the v0.1.11 local-declaration repair:
   storage, memory, elementary, and calldata declarations may use contextual
   keyword names without recovered errors or loss of later functions.
+- `parse_loss_backlog_test.go` pins the real-corpus parse-loss backlog (166
+  tolerant diagnostics across 23 files, reduced to six parser root causes):
+  Yul builtins spelled like Solidity keywords (`address()`, `return`,
+  `revert`), Yul function `->` return variables, dotted `using { L.f }` entries,
+  contextual-keyword custom-error parameter names, identifier-led for-init
+  expressions, qualified array local types, and tuple assignments with
+  `a[i].m` components. Every test also asserts the declaration after the
+  construct survives. Helpers `decodeAST` / `findNodes` assert on AST node
+  structure rather than substrings.
 - `elementary_conversion_call_test.go` proves the v0.1.12 repair:
   `address(x).call/.delegatecall/.staticcall`, `{value: ...}` calls, the
   OpenZeppelin `Address` helper idiom, assigned results and `uint256(n)` /
