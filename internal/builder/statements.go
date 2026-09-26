@@ -74,9 +74,21 @@ func (b *Builder) parseStatement() ast.Node {
 // looksLikeVariableDeclaration uses lookahead to determine if current position
 // looks like a variable declaration (Type name) vs expression statement (func())
 func (b *Builder) looksLikeVariableDeclaration() bool {
-	// Elementary types are definitely type names
+	// An elementary type name at statement start is usually a declaration
+	// (`address x = ...`), but it is also how an elementary type CONVERSION is
+	// written: `address(x).call(...)`, `uint256(v).toString()`. Only the
+	// conversion can put `(` directly after the type – no variable declaration
+	// has that shape – so one token of lookahead separates them.
+	//
+	// Treating every leading elementary type as a declaration sent
+	// `address(x).call(b);` to parseVariableDeclaration, which died on the `(`
+	// and dropped the whole statement. The enclosing function then carried no
+	// call at all, making it invisible to the call graph, to taint, and to
+	// every consumer's detectors. `address(target).call/.delegatecall/
+	// .staticcall` and the OpenZeppelin `Address` library idiom are written
+	// this way throughout production Solidity.
 	if b.isElementaryTypeName() {
-		return true
+		return !b.nextTokenIs(lexer.LPAREN)
 	}
 	
 	// mapping and function type keywords

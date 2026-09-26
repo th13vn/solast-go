@@ -37,6 +37,17 @@ func (b *Builder) check(t lexer.TokenType) bool {
 	return b.peek().Type == t
 }
 
+// nextTokenIs reports whether the token AFTER the current one has type t,
+// consuming nothing. One token of lookahead is enough to tell an elementary
+// type declaration (`address x`) from an elementary type conversion
+// (`address(x).call(...)`); see looksLikeVariableDeclaration.
+func (b *Builder) nextTokenIs(t lexer.TokenType) bool {
+	if b.pos+1 >= len(b.tokens) {
+		return false
+	}
+	return b.tokens[b.pos+1].Type == t
+}
+
 func (b *Builder) isAtEnd() bool {
 	return b.peek().Type == lexer.EOF
 }
