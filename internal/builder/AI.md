@@ -159,6 +159,15 @@ information — w3goaudit reported divide-before-multiply, boolean-cst, incorrec
 and unchecked-arithmetic findings against the enclosing FUNCTION's line instead of the
 operation's. When adding a new operator level, capture the start token the same way.
 
+## Number subdenominations (expressions.go)
+
+`checkNumberUnit` lists every unit the parser accepts after a number literal:
+`wei`, `gwei`, `szabo`, `finney`, `ether`, `seconds` through `weeks`, and
+`years`. `szabo`/`finney` (removed in 0.7) and `years` (removed in 0.5) stay
+because verified contracts with older pragmas still use them; a missing unit
+is an unexpected identifier that desynchronizes the rest of the file
+(`TestLegacyEtherUnits`).
+
 ## Expression precedence ladder (expressions.go) — lowest → highest
 
 `parseExpression`(27) → `parseAssignment`(31) → `parseTernary`(49) → `parseLogicalOr`(69) → `parseLogicalAnd`(86) → `parseEquality`(103) → `parseRelational`(120) → `parseBitwiseOr`(137) → `parseBitwiseXor`(154) → `parseBitwiseAnd`(171) → `parseShift`(188) → `parseAdditive`(205) → `parseMultiplicative`(222) → `parseExponentiation`(239, right-assoc) → `parseUnary`(256) → `parsePostfix`(273) → `parseCallMemberIndex`(289) → `parsePrimary`(409). A new binary operator slots into the level matching its precedence; a new primary form (literal/keyword-expr) goes in `parsePrimary`.

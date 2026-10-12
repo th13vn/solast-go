@@ -734,7 +734,9 @@ func (b *Builder) checkNumberUnit() bool {
 		return false
 	}
 	unit := b.peek().Value
-	units := []string{"wei", "gwei", "ether", "seconds", "minutes", "hours", "days", "weeks", "years"}
+	// `szabo` and `finney` were removed in Solidity 0.7 and `years` in 0.5, but
+	// verified contracts compiled with older pragmas still use them.
+	units := []string{"wei", "gwei", "szabo", "finney", "ether", "seconds", "minutes", "hours", "days", "weeks", "years"}
 	for _, u := range units {
 		if unit == u {
 			return true
