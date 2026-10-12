@@ -191,6 +191,11 @@ keyword, identifier-led `for` initializers, locals with a dotted array type,
 and tuple assignments with `a[i].m` targets. Assembly-heavy libraries such as
 Solady and OpenZeppelin `Address` now keep their `return`/`revert` statements.
 
+Version 0.1.14 accepts the pre-0.7 ether units `szabo` and `finney`. Older
+verified contracts such as MUSystem (`100 * 1 finney`) lost everything after
+the first unit to tolerant-mode recovery; upgrade if you analyze contracts
+compiled before Solidity 0.7.
+
 ## Development
 
 ```bash
